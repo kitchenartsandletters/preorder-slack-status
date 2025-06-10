@@ -2,6 +2,7 @@ import os
 import json
 import requests
 import logging
+import time
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
@@ -13,7 +14,6 @@ API_VERSION = os.getenv("API_VERSION")
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
 SLACK_CHANNEL = "#preorder-fall-2025"
 
-STATE_FILE = ".slack_unpublished_state.json"
 client = WebClient(token=SLACK_BOT_TOKEN)
 
 
@@ -32,6 +32,7 @@ def fetch_unpublished_fall_preorders():
             tags = [tag.strip() for tag in p.get("tags", "").split(",")]
             if ("Fall 2025" in tags and "preorder" in tags) and not p.get("published_at"):
                 all_unpublished.append((p["title"], p["handle"]))
+                time.sleep(0.6)
 
         link_header = response.headers.get("Link")
         if link_header and 'rel="next"' in link_header:
@@ -64,16 +65,6 @@ The following titles are still unpublished:
 """
 
 
-def load_state():
-    if os.path.exists(STATE_FILE):
-        with open(STATE_FILE, "r") as f:
-            return json.load(f)
-    return {}
-
-
-def save_state(state):
-    with open(STATE_FILE, "w") as f:
-        json.dump(state, f)
 
 
 def resolve_channel_id(channel_name):
@@ -88,25 +79,32 @@ def resolve_channel_id(channel_name):
     return None
 
 
-def get_or_create_message(channel_id, message_text):
-    state = load_state()
-    ts = state.get("message_ts")
 
-    if ts:
+# New message tracking functions using conversation history
+def find_existing_message(channel_id):
+    try:
+        result = client.conversations_history(channel=channel_id, limit=50)
+        for message in result["messages"]:
+            if message.get("text", "").startswith("📌 *[UNPUBLISHED TITLES – FALL 2025]*"):
+                return message["ts"]
+    except SlackApiError as e:
+        logging.error(f"Failed to fetch conversation history: {e.response['error']}")
+    return None
+
+def post_or_update_message(channel_id, message_text):
+    existing_ts = find_existing_message(channel_id)
+    if existing_ts:
         try:
-            client.chat_update(channel=channel_id, ts=ts, text=message_text)
-            logging.info("Unpublished titles message updated in Slack.")
+            client.chat_update(channel=channel_id, ts=existing_ts, text=message_text)
+            logging.info("Updated existing Slack message.")
         except SlackApiError as e:
             logging.error(f"Failed to update message: {e.response['error']}")
     else:
         try:
-            response = client.chat_postMessage(channel=channel_id, text=message_text)
-            ts = response["ts"]
-            state["message_ts"] = ts
-            save_state(state)
-            logging.info("New unpublished message posted and state saved.")
+            client.chat_postMessage(channel=channel_id, text=message_text)
+            logging.info("Posted new Slack message.")
         except SlackApiError as e:
-            logging.error(f"Failed to post new message: {e.response['error']}")
+            logging.error(f"Failed to post message: {e.response['error']}")
 
 
 def main():
@@ -114,7 +112,7 @@ def main():
     message = build_message(unpublished)
     channel_id = resolve_channel_id(SLACK_CHANNEL)
     if channel_id:
-        get_or_create_message(channel_id, message)
+        post_or_update_message(channel_id, message)
 
 
 if __name__ == "__main__":

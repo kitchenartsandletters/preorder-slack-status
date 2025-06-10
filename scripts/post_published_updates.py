@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import requests
+import time
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
@@ -14,7 +15,6 @@ API_VERSION = os.getenv("API_VERSION")
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
 SLACK_CHANNEL = "#preorder-fall-2025"  # Change if using a different channel
 
-STATE_FILE = ".slack_post_state.json"
 client = WebClient(token=SLACK_BOT_TOKEN)
 
 
@@ -33,6 +33,7 @@ def fetch_published_fall_preorders():
             break
         data = response.json().get("products", [])
         products.extend(data)
+        time.sleep(0.6)
 
         link_header = response.headers.get("Link")
         if link_header and 'rel="next"' in link_header:
@@ -71,37 +72,30 @@ def build_message(published_products):
     return message
 
 
-def load_state():
-    if os.path.exists(STATE_FILE):
-        with open(STATE_FILE, "r") as f:
-            return json.load(f)
-    return {}
+def find_existing_message(channel_id):
+    try:
+        result = client.conversations_history(channel=channel_id, limit=50)
+        for message in result["messages"]:
+            if message.get("text", "").startswith("📣 Published Fall 2025 Preorder Titles:"):
+                return message["ts"]
+    except SlackApiError as e:
+        logging.error(f"Failed to fetch conversation history: {e.response['error']}")
+    return None
 
-
-def save_state(state):
-    with open(STATE_FILE, "w") as f:
-        json.dump(state, f)
-
-
-def get_or_create_message(channel_id, message_text):
-    state = load_state()
-    ts = state.get("message_ts")
-
-    if ts:
+def post_or_update_message(channel_id, message_text):
+    existing_ts = find_existing_message(channel_id)
+    if existing_ts:
         try:
-            client.chat_update(channel=channel_id, ts=ts, text=message_text)
-            logging.info("Message updated in Slack.")
+            client.chat_update(channel=channel_id, ts=existing_ts, text=message_text)
+            logging.info("Updated existing Slack message.")
         except SlackApiError as e:
             logging.error(f"Failed to update message: {e.response['error']}")
     else:
         try:
-            response = client.chat_postMessage(channel=channel_id, text=message_text)
-            ts = response["ts"]
-            state["message_ts"] = ts
-            save_state(state)
-            logging.info("New message posted and state saved.")
+            client.chat_postMessage(channel=channel_id, text=message_text)
+            logging.info("Posted new Slack message.")
         except SlackApiError as e:
-            logging.error(f"Failed to post new message: {e.response['error']}")
+            logging.error(f"Failed to post message: {e.response['error']}")
 
 
 def resolve_channel_id(channel_name):
@@ -121,7 +115,7 @@ def main():
     message = build_message(products)
     channel_id = resolve_channel_id(SLACK_CHANNEL)
     if channel_id:
-        get_or_create_message(channel_id, message)
+        post_or_update_message(channel_id, message)
 
 
 if __name__ == "__main__":
