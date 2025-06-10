@@ -63,7 +63,7 @@ def build_message(published_products):
     if not published_products:
         return "❌ No Fall 2025 preorder titles have been published yet."
 
-    message = "*📣 Published Fall 2025 Preorder Titles:*\n"
+    message = "*Published Fall 2025 Preorder Titles:*\n"
     for i, product in enumerate(published_products, start=1):
         title = product.get("title")
         handle = product.get("handle")
@@ -76,7 +76,7 @@ def find_existing_message(channel_id):
     try:
         result = client.conversations_history(channel=channel_id, limit=50)
         for message in result["messages"]:
-            if message.get("text", "").startswith("*📣 Published Fall 2025 Preorder Titles:"):
+            if message.get("text", "").startswith("Published Fall 2025 Preorder Titles:"):
                 return message["ts"]
     except SlackApiError as e:
         logging.error(f"Failed to fetch conversation history: {e.response['error']}")
