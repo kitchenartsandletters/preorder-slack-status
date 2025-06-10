@@ -1,11 +1,21 @@
 import os
+import json
 import requests
-from slack_sdk.webhook import WebhookClient
+import logging
+from slack_sdk import WebClient
+from slack_sdk.errors import SlackApiError
+
+logging.basicConfig(level=logging.INFO)
 
 SHOP_URL = os.getenv("SHOP_URL")
 ACCESS_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN")
 API_VERSION = os.getenv("API_VERSION")
-SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
+SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
+SLACK_CHANNEL = "#preorder-fall-2025"
+
+STATE_FILE = ".slack_unpublished_state.json"
+client = WebClient(token=SLACK_BOT_TOKEN)
+
 
 def fetch_unpublished_fall_preorders():
     all_unpublished = []
@@ -25,13 +35,11 @@ def fetch_unpublished_fall_preorders():
 
         link_header = response.headers.get("Link")
         if link_header and 'rel="next"' in link_header:
-            # Extract page_info from the link header
             next_url = [
                 part.split(";")[0].strip("<> ")
                 for part in link_header.split(",")
                 if 'rel="next"' in part
             ][0]
-            # Extract query params from next_url
             from urllib.parse import urlparse, parse_qs
             query = urlparse(next_url).query
             page_info = parse_qs(query).get("page_info", [None])[0]
@@ -43,23 +51,71 @@ def fetch_unpublished_fall_preorders():
 
     return all_unpublished
 
-def post_to_slack(unpublished):
+
+def build_message(unpublished):
     if not unpublished:
-        msg = "✅ All Fall 2025 preorder titles are published."
-    else:
-        body = "\n".join([f"{i+1}. *{title}* (`{handle}`)" for i, (title, handle) in enumerate(unpublished)])
-        msg = f"""📌 *[UNPUBLISHED TITLES – FALL 2025]*  
+        return "✅ All Fall 2025 preorder titles are published."
+
+    body = "\n".join([f"{i+1}. *{title}* (`{handle}`)" for i, (title, handle) in enumerate(unpublished)])
+    return f"""📌 *[UNPUBLISHED TITLES – FALL 2025]*  
 The following titles are still unpublished:
 
 {body}
-
 """
-    webhook = WebhookClient(SLACK_WEBHOOK_URL)
-    webhook.send(text=msg)
+
+
+def load_state():
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE, "r") as f:
+            return json.load(f)
+    return {}
+
+
+def save_state(state):
+    with open(STATE_FILE, "w") as f:
+        json.dump(state, f)
+
+
+def resolve_channel_id(channel_name):
+    try:
+        response = client.conversations_list()
+        for channel in response["channels"]:
+            if channel["name"] == channel_name.strip("#"):
+                return channel["id"]
+        logging.error(f"Channel {channel_name} not found.")
+    except SlackApiError as e:
+        logging.error(f"Error fetching channel list: {e.response['error']}")
+    return None
+
+
+def get_or_create_message(channel_id, message_text):
+    state = load_state()
+    ts = state.get("message_ts")
+
+    if ts:
+        try:
+            client.chat_update(channel=channel_id, ts=ts, text=message_text)
+            logging.info("Unpublished titles message updated in Slack.")
+        except SlackApiError as e:
+            logging.error(f"Failed to update message: {e.response['error']}")
+    else:
+        try:
+            response = client.chat_postMessage(channel=channel_id, text=message_text)
+            ts = response["ts"]
+            state["message_ts"] = ts
+            save_state(state)
+            logging.info("New unpublished message posted and state saved.")
+        except SlackApiError as e:
+            logging.error(f"Failed to post new message: {e.response['error']}")
+
 
 def main():
     unpublished = fetch_unpublished_fall_preorders()
-    post_to_slack(unpublished)
+    message = build_message(unpublished)
+    channel_id = resolve_channel_id(SLACK_CHANNEL)
+    if channel_id:
+        get_or_create_message(channel_id, message)
+
 
 if __name__ == "__main__":
     main()
