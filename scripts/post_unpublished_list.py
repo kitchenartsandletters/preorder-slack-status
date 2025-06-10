@@ -86,7 +86,9 @@ def find_existing_message(channel_id):
         result = client.conversations_history(channel=channel_id, limit=50)
         for message in result["messages"]:
             if message.get("text", "").startswith("📌 *[UNPUBLISHED TITLES – FALL 2025]*"):
+                logging.info("Found existing message to update.")
                 return message["ts"]
+        logging.info("No existing message found; a new one will be posted.")
     except SlackApiError as e:
         logging.error(f"Failed to fetch conversation history: {e.response['error']}")
     return None

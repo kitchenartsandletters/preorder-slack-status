@@ -76,7 +76,7 @@ def find_existing_message(channel_id):
     try:
         result = client.conversations_history(channel=channel_id, limit=50)
         for message in result["messages"]:
-            if message.get("text", "").startswith("📣 Published Fall 2025 Preorder Titles:"):
+            if message.get("text", "").startswith("*📣 Published Fall 2025 Preorder Titles:"):
                 return message["ts"]
     except SlackApiError as e:
         logging.error(f"Failed to fetch conversation history: {e.response['error']}")
@@ -86,6 +86,7 @@ def post_or_update_message(channel_id, message_text):
     existing_ts = find_existing_message(channel_id)
     if existing_ts:
         try:
+            logging.info(f"Updating message with ts={existing_ts}")
             client.chat_update(channel=channel_id, ts=existing_ts, text=message_text)
             logging.info("Updated existing Slack message.")
         except SlackApiError as e:
@@ -93,7 +94,7 @@ def post_or_update_message(channel_id, message_text):
     else:
         try:
             client.chat_postMessage(channel=channel_id, text=message_text)
-            logging.info("Posted new Slack message.")
+            logging.info("Posted new Slack message (no previous message found).")
         except SlackApiError as e:
             logging.error(f"Failed to post message: {e.response['error']}")
 
