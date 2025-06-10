@@ -46,11 +46,14 @@ def fetch_published_fall_preorders():
         else:
             break
 
-    matching = [
-        p for p in products
-        if any("Fall 2025" in tag and "preorder" in tag for tag in p.get("tags", "").split(","))
-        and p.get("published_at")
-    ]
+    matching = []
+    for p in products:
+        product_tags = [t.strip() for t in p.get("tags", "").split(",")]
+        is_published = bool(p.get("published_at"))
+        has_tags = all(tag in product_tags for tag in ["Fall 2025", "preorder"])
+        logging.info(f"Checking: {p.get('title')} — Tags: {product_tags} — Published: {is_published} — Matched: {is_published and has_tags}")
+        if is_published and has_tags:
+            matching.append(p)
     logging.info(f"{len(matching)} published Fall 2025/preorder products found")
     return matching
 
