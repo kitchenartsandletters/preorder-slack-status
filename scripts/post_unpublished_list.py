@@ -58,7 +58,7 @@ def build_message(unpublished):
         return "✅ All Fall 2025 preorder titles are published."
 
     body = "\n".join([f"{i+1}. *{title}* (`{handle}`)" for i, (title, handle) in enumerate(unpublished)])
-    return f"""*[UNPUBLISHED TITLES – FALL 2025]*  
+    return f"""*[UNPUBLISHED TITLES - FALL 2025]*  
 The following titles are still unpublished:
 
 {body}
@@ -85,7 +85,10 @@ def find_existing_message(channel_id):
     try:
         result = client.conversations_history(channel=channel_id, limit=50)
         for message in result["messages"]:
-            if message.get("text", "").startswith("*[UNPUBLISHED TITLES – FALL 2025]*"):
+            logging.info(f"Message text: {message.get('text')}")
+            # Remove asterisks from message text before checking
+            msg_text = message.get("text", "").replace("*", "")
+            if msg_text.startswith("[UNPUBLISHED TITLES - FALL 2025]"):
                 logging.info("Found existing message to update.")
                 return message["ts"]
         logging.info("No existing message found; a new one will be posted.")

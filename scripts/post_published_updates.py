@@ -76,7 +76,7 @@ def find_existing_message(channel_id):
     try:
         result = client.conversations_history(channel=channel_id, limit=50)
         for message in result["messages"]:
-            if message.get("text", "").startswith("Published Fall 2025 Preorder Titles:"):
+            if message.get("text", "").startswith("*Published Fall 2025 Preorder Titles:*"):
                 return message["ts"]
     except SlackApiError as e:
         logging.error(f"Failed to fetch conversation history: {e.response['error']}")
