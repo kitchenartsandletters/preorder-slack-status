@@ -1,0 +1,36 @@
+name: Fall 2025 Publish Status Tracker
+
+on:
+  schedule:
+    - cron: "0 */2 * * *"
+  workflow_dispatch:
+
+jobs:
+  check-unpublished:
+    runs-on: ubuntu-latest
+
+    env:
+      SHOP_URL: ${{ secrets.SHOP_URL }}
+      SHOPIFY_ACCESS_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+      API_VERSION: ${{ secrets.API_VERSION }}
+      SHOPIFY_API_KEY: ${{ secrets.SHOPIFY_API_KEY }}
+      SHOPIFY_API_SECRET: ${{ secrets.SHOPIFY_API_SECRET }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests slack_sdk
+
+      - name: Run unpublished tracker
+        run: python scripts/post_unpublished_list.py
+
+      - name: Run published notification script
+        run: python scripts/post_published_updates.py
