@@ -30,7 +30,7 @@ def fetch_unpublished_fall_preorders():
         products = response.json().get("products", [])
         for p in products:
             tags = [tag.strip() for tag in p.get("tags", "").split(",")]
-            if ("Fall 2025" in tags or "preorder" in tags) and not p.get("published_at"):
+            if ("Fall 2025" in tags and "preorder" in tags) and not p.get("published_at"):
                 all_unpublished.append((p["title"], p["handle"]))
 
         link_header = response.headers.get("Link")
