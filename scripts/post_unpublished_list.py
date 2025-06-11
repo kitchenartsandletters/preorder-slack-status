@@ -57,7 +57,7 @@ def build_message(unpublished):
     if not unpublished:
         return "✅ All Fall 2025 preorder titles are published."
 
-    body = "\n".join([f"{i+1}. *{title}* (`{handle}`)" for i, (title, handle) in enumerate(unpublished)])
+    body = "\n".join([f"{i+1}. *{title}*" for i, (title, handle) in enumerate(unpublished)])
     return f"""*UNPUBLISHED TITLES - FALL 2025*  
 The following titles are still unpublished:
 
