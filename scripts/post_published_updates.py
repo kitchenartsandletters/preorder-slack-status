@@ -66,9 +66,8 @@ def build_message(published_products):
     message = "*Published Fall 2025 Preorder Titles:*\n"
     for i, product in enumerate(published_products, start=1):
         title = product.get("title")
-        handle = product.get("handle")
         scope = product.get("published_scope", "unknown").capitalize()
-        message += f"{i}. *{title}* (`{handle}`) – Published to: {scope}\n"
+        message += f"{i}. *{title}* – Published to: {scope}\n"
     return message
 
 
